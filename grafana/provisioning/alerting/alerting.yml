@@ -1,0 +1,149 @@
+apiVersion: 1
+
+# Where notifications go: a webhook back into our own API.
+# The API logs the payload, so the alert itself becomes a log in OpenSearch.
+contactPoints:
+  - orgId: 1
+    name: api-webhook
+    receivers:
+      - uid: api-webhook
+        type: webhook
+        settings:
+          url: http://api:4000/alert-hook
+          httpMethod: POST
+
+# Routing: send every alert to the webhook, quickly (lab-friendly timings).
+policies:
+  - orgId: 1
+    receiver: api-webhook
+    group_by: ['grafana_folder', 'alertname']
+    group_wait: 10s
+    group_interval: 1m
+    repeat_interval: 4h
+
+groups:
+  - orgId: 1
+    name: lab-alerts
+    folder: Observability Lab
+    interval: 30s
+    rules:
+      # ----------------------------------------------------------------
+      # 1. Request failures: >5% of requests returned 5xx for 1 minute.
+      #    Trigger:  .\load-test.ps1 -OnlyErrors
+      # ----------------------------------------------------------------
+      - uid: high-error-rate
+        title: High request error rate
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+        annotations:
+          summary: 'More than 5% of API requests are failing with 5xx'
+          runbook: 'Stop the error load test, or fix /api/error ;)'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+
+      # ----------------------------------------------------------------
+      # 2. CPU: api container using >0.5 CPU cores for 2 minutes.
+      #    Trigger:  curl http://localhost:4000/api/burn?seconds=240
+      # ----------------------------------------------------------------
+      - uid: high-cpu-api
+        title: API container high CPU
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: 'api container is using more than 0.5 CPU cores'
+          runbook: 'Wait for /api/burn to finish, or restart the api container'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(rate(container_cpu_usage_seconds_total{name="api"}[2m]))
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.5] }
+
+      # ----------------------------------------------------------------
+      # 3. Memory: api container above 300MB for 1 minute.
+      #    Trigger:  curl http://localhost:4000/api/leak   (5+ times)
+      #    Resolve:  curl "http://localhost:4000/api/leak?clear=true"
+      # ----------------------------------------------------------------
+      - uid: high-memory-api
+        title: API container high memory
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: 'api container is using more than 300MB of memory'
+          runbook: 'curl "http://localhost:4000/api/leak?clear=true" to release it'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: container_memory_usage_bytes{name="api"}
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [314572800] }

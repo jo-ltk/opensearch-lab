@@ -1,0 +1,142 @@
+---
+# Observability Learning Lab
+#
+#   frontend (Next.js :3000) -> api (Express :4000)
+#
+#   LOGS:    api stdout --fluentd driver--> fluent-bit :24224 --> opensearch :9200 --> dashboards :5601
+#   METRICS: api /metrics + cadvisor :8081 --scraped by--> prometheus :9090 --> grafana :3001 --> alerts
+#
+# Start everything:  docker compose up -d --build
+
+services:
+  # ---------------------------------------------------------------- Phase 1
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - 3000:3000
+    depends_on:
+      - api
+    networks:
+      - lab-net
+
+  api:
+    build: ./api
+    container_name: api
+    ports:
+      - 4000:4000
+    networks:
+      - lab-net
+    # Phase 2: ship this container's stdout to Fluent Bit instead of a local file.
+    # fluentd-async lets the api start even if Fluent Bit isn't up yet.
+    # NOTE: with this driver, `docker compose logs api` no longer works —
+    # the logs now live in OpenSearch. That's the point!
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        fluentd-async: 'true'
+        tag: docker.api
+
+  # ---------------------------------------------------------------- Phase 2
+  opensearch:
+    image: opensearchproject/opensearch:2.19.1
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node # one node is plenty for a lab
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true # lab only — never in production
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - lab-net
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.19.1
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+    networks:
+      - lab-net
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: fluent-bit
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+    ports:
+      - 24224:24224 # the Docker fluentd log driver pushes here
+    depends_on:
+      - opensearch
+    networks:
+      - lab-net
+
+  # ---------------------------------------------------------------- Phase 3
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - 9090:9090
+    networks:
+      - lab-net
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - 8081:8080
+    networks:
+      - lab-net
+
+  # ---------------------------------------------------------- Phases 4 + 5
+  grafana:
+    image: grafana/grafana:11.6.1
+    container_name: grafana
+    ports:
+      - 3001:3000 # 3000 on the host is taken by Next.js
+    environment:
+      # Lab convenience: no login wall. Never do this in production.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - lab-net
+
+volumes:
+  opensearch-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  lab-net:

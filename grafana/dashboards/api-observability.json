@@ -1,0 +1,157 @@
+{
+  "title": "API Observability (RED + Containers)",
+  "uid": "api-observability",
+  "tags": ["lab", "red-method"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Rate — requests/sec by route",
+      "description": "The R in RED. rate() turns the ever-increasing counter into requests-per-second.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(http_requests_total{route!~\"/metrics|/health\"}[1m]))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Errors — % of requests returning 5xx",
+      "description": "The E in RED. Spam the 'Flaky request' button to move this.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))",
+          "legendFormat": "error rate"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Duration — p95 request latency",
+      "description": "The D in RED. 95% of requests are faster than this line. Spam 'Slow request' to push it up.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50 (median)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Node.js process memory (prom-client default metric)",
+      "description": "Resident memory of the API process itself. Hit /api/leak to grow it.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "process_resident_memory_bytes{job=\"api\"}",
+          "legendFormat": "api RSS"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Container CPU (cAdvisor)",
+      "description": "CPU cores used per container. Hit /api/burn?seconds=120 to spike the api line.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"api|frontend|opensearch|prometheus|grafana|fluent-bit|opensearch-dashboards\"}[2m]))",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Container memory (cAdvisor)",
+      "description": "Memory per container. OpenSearch will dominate — that's normal (Java heap).",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "container_memory_usage_bytes{name=~\"api|frontend|opensearch|prometheus|grafana|fluent-bit|opensearch-dashboards\"}",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    }
+  ]
+}

@@ -126,8 +126,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"api|frontend|opensearch|prometheus|grafana|fluent-bit|opensearch-dashboards\"}[2m]))",
-          "legendFormat": "{{name}}"
+          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\"}[2m]))",
+          "legendFormat": "{{id}}"
         }
       ]
     },
@@ -148,8 +148,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "container_memory_usage_bytes{name=~\"api|frontend|opensearch|prometheus|grafana|fluent-bit|opensearch-dashboards\"}",
-          "legendFormat": "{{name}}"
+          "expr": "container_memory_usage_bytes{job=\"cadvisor\", id=~\"/|/docker.*|/restricted\"}",
+          "legendFormat": "{{id}}"
         }
       ]
     }

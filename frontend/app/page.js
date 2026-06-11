@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 // The browser runs this code, so it must reach the API through a port
 // published on YOUR machine (localhost:4000) — not the Docker-internal
@@ -65,6 +66,10 @@ export default function Home() {
 
   return (
     <main>
+      <nav className="top-nav">
+        <Link href="/observability-demo">Observability Demo →</Link>
+      </nav>
+
       <header className="card hero">
         <h1>💻 Tech Store Observability Lab</h1>
         <p className="subtitle">

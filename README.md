@@ -1,162 +1,442 @@
 # Observability Learning Lab
 
-A tiny Next.js + Express app wired into a full observability stack so you can learn logs, metrics, dashboards, and alerts hands-on.
+A hands-on observability playground built with **Next.js**, **Express**, **Prometheus**, **Grafana**, **OpenSearch**, **Fluent Bit**, and **Slack**.
+
+Generate real traffic, CPU spikes, memory leaks, and application errors with a single click, then watch logs, metrics, dashboards, and alerts update in real time.
+
+---
 
 ## Architecture
 
+```text
+Browser
+   |
+   v
+Next.js Frontend (:3000)
+   |
+   v
+Express API (:4000)
+   |
+   +-------------------------------+
+   |                               |
+   | Metrics                       | Logs
+   v                               v
+Prometheus (:9090)           Fluent Bit
+   |                               |
+   v                               v
+Grafana (:3001)             OpenSearch (:9200)
+   |                               |
+   | Alerts                        |
+   +----------> Slack              |
+                                   v
+                      OpenSearch Dashboards (:5601)
 ```
-Browser -> Next.js (:3000) -> Express API (:4000)
-                                    |
-                    +---------------+----------------+
-                    |                                |
-              JSON logs (stdout)              /metrics endpoint
-                    |                                |
-              Fluent Bit (:24224)              Prometheus (:9090)
-                    |                                |
-              OpenSearch (:9200)              Grafana (:3001)
-                    |                                |
-         OpenSearch Dashboards (:5601)           Alerts -> webhook -> API logs
+
+---
+
+## Features
+
+### Frontend Demo UI
+
+The Observability Demo provides one-click actions for generating real observability events.
+
+Available at:
+
+```text
+http://localhost:3000/observability-demo
 ```
+
+Actions:
+
+* Burn CPU
+* Create Memory Leak
+* Clear Memory Leak
+* Generate Errors
+
+Monitoring shortcuts:
+
+* Grafana
+* Prometheus
+* OpenSearch Dashboards
+
+---
 
 ## Prerequisites
 
-- Docker Desktop (allocate at least **4 GB RAM** in Settings -> Resources)
-- PowerShell (for the helper scripts)
+* Docker Desktop (4GB+ RAM recommended)
+* PowerShell
 
-## Quick start
+---
+
+## Quick Start
 
 ```powershell
-# Start everything (first run downloads images — allow 5-10 minutes)
 docker compose up -d --build
-
-# Generate traffic
-.\load-test.ps1
-
-# Set up the OpenSearch Dashboards index pattern (one-time)
-.\setup-dashboards.ps1
 ```
 
-## URLs
+Open:
 
-| Service | URL | What to look at |
-|---------|-----|-----------------|
-| Frontend | http://localhost:3000 | 3 buttons that generate traffic |
-| API | http://localhost:4000/health | Health check |
-| API metrics | http://localhost:4000/metrics | Raw Prometheus text format |
-| OpenSearch | http://localhost:9200/_cat/indices?v | Indices and doc counts |
-| OpenSearch Dashboards | http://localhost:5601 | Discover, visualizations |
-| Prometheus | http://localhost:9090/targets | All targets should be UP |
-| Grafana | http://localhost:3001 | RED dashboard + alerts |
-| cAdvisor | http://localhost:8081 | Container metrics UI |
+```text
+Frontend:
+http://localhost:3000
 
-## API endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/products` | Normal fast request |
-| `GET /api/slow` | Random 0.5–3s delay (latency metrics) |
-| `GET /api/error` | ~30% chance of 500 (error logs + alerts) |
-| `GET /api/burn?seconds=120` | Burns CPU (triggers CPU alert) |
-| `GET /api/leak` | Leaks 50 MB per call (triggers memory alert) |
-| `GET /api/leak?clear=true` | Releases leaked memory |
-| `POST /alert-hook` | Grafana webhook receiver (alert notifications become logs) |
-| `GET /metrics` | Prometheus scrape target |
-| `GET /health` | Health check |
-
-## Generate load
-
-```powershell
-.\load-test.ps1                  # 60s mixed traffic
-.\load-test.ps1 -Seconds 300     # 5 minutes
-.\load-test.ps1 -OnlyErrors      # hammer /api/error (triggers error-rate alert)
+Observability Demo:
+http://localhost:3000/observability-demo
 ```
 
-## OpenSearch Dashboards setup
+---
 
-1. Run `.\setup-dashboards.ps1` (or create index pattern `app-logs*` manually in the UI)
-2. Open **Discover** -> select `app-logs*`
-3. Set time range to **Last 15 minutes**
-4. Try DQL filters:
-   - `level:error`
-   - `route:"/api/error"`
-   - `status >= 500`
-5. Create visualizations:
-   - **Requests over time** (date histogram on `@timestamp`)
-   - **Errors by route** (terms aggregation on `route`, filter `level:error`)
-6. Save both to a dashboard called "API Logs"
+## Services
 
-## Prometheus exercises
+| Service               | URL                                      |
+| --------------------- | ---------------------------------------- |
+| Frontend              | http://localhost:3000                    |
+| Observability Demo    | http://localhost:3000/observability-demo |
+| API                   | http://localhost:4000                    |
+| Metrics               | http://localhost:4000/metrics            |
+| Prometheus            | http://localhost:9090                    |
+| Grafana               | http://localhost:3001                    |
+| OpenSearch            | http://localhost:9200                    |
+| OpenSearch Dashboards | http://localhost:5601                    |
+| cAdvisor              | http://localhost:8081                    |
 
-Open http://localhost:9090 -> **Graph** and run:
+---
+
+## Demo Scenarios
+
+### 1. CPU Alert Demo
+
+Click:
+
+```text
+Burn CPU
+```
+
+What happens:
+
+```text
+API CPU increases
+↓
+cAdvisor collects metrics
+↓
+Prometheus scrapes metrics
+↓
+Grafana CPU graph rises
+↓
+Alert state:
+Normal
+→ Pending
+→ Firing
+↓
+Slack notification sent
+```
+
+Alert:
+
+```text
+API container high CPU
+```
+
+Threshold:
+
+```text
+CPU > 0.5 cores for 2 minutes
+```
+
+---
+
+### 2. Memory Alert Demo
+
+Click:
+
+```text
+Create Memory Leak
+```
+
+Each click allocates approximately 50 MB.
+
+Repeat several times until:
+
+```text
+Memory > 300 MB
+```
+
+Flow:
+
+```text
+Memory grows
+↓
+Prometheus records usage
+↓
+Grafana memory graph rises
+↓
+Memory alert fires
+↓
+Slack notification sent
+```
+
+Resolve:
+
+```text
+Clear Memory Leak
+```
+
+---
+
+### 3. Error Rate Alert Demo
+
+Click:
+
+```text
+Generate Errors
+```
+
+The API intentionally returns intermittent HTTP 500 responses.
+
+Flow:
+
+```text
+500 errors generated
+↓
+Prometheus records failures
+↓
+Error rate increases
+↓
+Grafana alert fires
+↓
+Slack notification sent
+```
+
+---
+
+## Observability Stack
+
+### Metrics
+
+Collected by:
+
+```text
+Prometheus
+```
+
+Useful queries:
 
 ```promql
-# Requests per second by route
 sum by (route) (rate(http_requests_total[1m]))
 
-# Error rate (5xx)
 sum(rate(http_requests_total{status=~"5.."}[1m]))
 
-# p95 latency
-histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))
-
-# OpenSearch container memory
-container_memory_usage_bytes{name="opensearch"}
+histogram_quantile(
+  0.95,
+  sum by (le)(
+    rate(http_request_duration_seconds_bucket[5m])
+  )
+)
 ```
 
-## Grafana
+---
 
-- Dashboard: **Observability Lab -> API Observability (RED + Containers)**
-- Community dashboard: import ID **14282** (cAdvisor) via **Dashboards -> Import**
+### Logs
 
-## Trigger alerts
+Collected by:
 
-| Alert | How to trigger | How to resolve |
-|-------|----------------|----------------|
-| High request error rate | `.\load-test.ps1 -OnlyErrors` for 2+ min | Stop the script |
-| API container high CPU | `curl http://localhost:4000/api/burn?seconds=240` | Wait for burn to finish |
-| API container high memory | Run `curl http://localhost:4000/api/leak` 6+ times | `curl "http://localhost:4000/api/leak?clear=true"` |
+```text
+Fluent Bit
+```
 
-Watch alert lifecycle at http://localhost:3001/alerting/list (Normal -> Pending -> Firing -> Resolved).
+Stored in:
 
-Alert notifications are sent to `POST /api/alert-hook` and appear as logs in OpenSearch Dashboards (search for `grafana alert notification`).
+```text
+OpenSearch
+```
 
-## Run the test plan
+Viewed in:
 
-Verify everything is working end-to-end:
+```text
+OpenSearch Dashboards
+```
+
+Useful searches:
+
+```text
+level:error
+
+route:"/api/error"
+
+status >= 500
+
+grafana alert notification
+```
+
+---
+
+### Dashboards
+
+Grafana Dashboard:
+
+```text
+Observability Lab
+└── API Observability (RED + Containers)
+```
+
+Monitor:
+
+* Request Rate
+* Error Rate
+* Request Duration
+* Container CPU
+* Container Memory
+
+---
+
+## Alerts
+
+### High Request Error Rate
+
+Trigger:
 
 ```powershell
-.\test-plan.ps1
+.\load-test.ps1 -OnlyErrors
 ```
 
-This runs 24 automated checks across all 5 phases (app, logs, metrics, Grafana, alerts).
+Condition:
 
-## Useful commands
+```text
+5xx error rate > 5%
+```
+
+---
+
+### API Container High CPU
+
+Trigger:
+
+```text
+Burn CPU button
+```
+
+or
 
 ```powershell
-docker compose ps                          # container status
-docker compose logs fluent-bit --tail 20   # log shipper
-docker compose logs grafana --tail 20      # grafana + alerting
-docker compose down                        # stop everything
-docker compose down -v                     # stop + delete data volumes
+curl http://localhost:4000/api/burn?seconds=240
 ```
 
-## Project structure
+Condition:
 
+```text
+CPU > 0.5 cores for 2 minutes
 ```
+
+---
+
+### API Container High Memory
+
+Trigger:
+
+```text
+Create Memory Leak button
+```
+
+or
+
+```powershell
+curl http://localhost:4000/api/leak
+```
+
+Condition:
+
+```text
+Memory > 300 MB
+```
+
+Resolve:
+
+```powershell
+curl "http://localhost:4000/api/leak?clear=true"
+```
+
+---
+
+## Slack Integration
+
+Grafana alerts can be sent directly to Slack.
+
+Alert lifecycle:
+
+```text
+Normal
+↓
+Pending
+↓
+Firing
+↓
+Resolved
+```
+
+Example Slack notifications:
+
+```text
+[FIRING] API container high CPU
+
+[FIRING] High request error rate
+
+[RESOLVED] API container high CPU
+```
+
+---
+
+## Useful Commands
+
+```powershell
+docker compose ps
+
+docker compose logs grafana --tail 50
+
+docker compose logs fluent-bit --tail 50
+
+docker compose logs api --tail 50
+
+docker compose restart grafana
+
+docker compose down
+
+docker compose down -v
+```
+
+---
+
+## Project Structure
+
+```text
 opensearch-lab/
-  api/                  Express + pino + prom-client
-  frontend/             Next.js demo UI
-  fluent-bit/           Log shipper config
-  prometheus/           Scrape config
-  grafana/              Datasources, dashboards, alerts (provisioned)
-  docs/                 Architecture diagrams + learning notes
-  docker-compose.yml
-  load-test.ps1
-  setup-dashboards.ps1
+│
+├── api/
+├── frontend/
+├── fluent-bit/
+├── prometheus/
+├── grafana/
+├── docs/
+│
+├── docker-compose.yml
+├── load-test.ps1
+├── setup-dashboards.ps1
+└── README.md
 ```
 
-## Learn more
+---
 
-- [docs/architecture.md](docs/architecture.md) — system diagrams
-- [docs/learning-notes.md](docs/learning-notes.md) — key concepts in plain language
-- [docs/whats-next.md](docs/whats-next.md) — what to study after this lab
+## Learning Goals
+
+By completing this lab you will understand:
+
+* Structured logging
+* Log aggregation
+* Prometheus metrics
+* RED metrics
+* Grafana dashboards
+* Alerting
+* Slack notifications
+* OpenSearch
+* Fluent Bit
+* Container monitoring
+* End-to-end observability workflows

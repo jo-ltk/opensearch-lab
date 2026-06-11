@@ -187,3 +187,147 @@ pre {
   border-radius: 4px;
   padding: 1px 6px;
 }
+
+/* ── Observability Demo page ── */
+
+.demo-page {
+  max-width: 900px;
+}
+
+.top-nav {
+  margin-bottom: 20px;
+}
+
+.top-nav a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.top-nav a:hover {
+  text-decoration: underline;
+}
+
+.section-desc {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: -8px 0 20px;
+  line-height: 1.5;
+}
+
+.demo-section h2 {
+  font-size: 1.1rem;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.action-grid,
+.monitoring-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.action-btn,
+.monitoring-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  min-width: 0;
+  flex: unset;
+  transition: border-color 0.15s, transform 0.05s, background 0.15s;
+}
+
+.action-btn:hover,
+.monitoring-link:hover {
+  border-color: var(--accent);
+  background: #232a33;
+}
+
+.action-btn:active {
+  transform: scale(0.98);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.monitoring-link {
+  text-decoration: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.monitoring-link:active {
+  transform: scale(0.98);
+}
+
+.action-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.action-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* ── Toasts ── */
+
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+  pointer-events: none;
+  max-width: min(420px, calc(100vw - 48px));
+}
+
+.toast {
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  animation: toast-in 0.25s ease-out;
+}
+
+.toast-success {
+  border-color: var(--green);
+  background: #1a2e1f;
+}
+
+.toast-warn {
+  border-color: var(--amber);
+  background: #2a2418;
+}
+
+.toast-error {
+  border-color: var(--red);
+  background: #2d1a1a;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -25,6 +25,10 @@ services:
     container_name: api
     ports:
       - 4000:4000
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+    volumes:
+      - ./demo-disk:/demo-disk
     networks:
       - lab-net
     # Phase 2: ship this container's stdout to Fluent Bit instead of a local file.

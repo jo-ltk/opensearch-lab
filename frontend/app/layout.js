@@ -1,9 +1,9 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Tech Store Observability Lab',
+  title: 'Monitoring Demo',
   description:
-    'A demo tech store app that generates normal, slow, and failing requests to observe logs, metrics, dashboards, and alerts.',
+    'Live demo buttons for Node Exporter, Grafana dashboards, and Slack alerts.',
 };
 
 export default function RootLayout({ children }) {

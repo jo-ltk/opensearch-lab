@@ -124,10 +124,10 @@ You should see panels for **CPU Usage %**, **Memory Usage %**, **Disk Usage %**,
 .\test-plan.ps1
 ```
 
-### 6. Optional demo launcher
+### 6. Open the demo page
 
 ```text
-http://localhost:3000/observability-demo
+http://localhost:3000
 ```
 
 ---
@@ -163,8 +163,7 @@ This runs a short CPU stress container. After about 2 minutes, the **High CPU us
 | Node Exporter  | http://localhost:9100/metrics            | Host metrics exporter         |
 | Prometheus     | http://localhost:9090                    | Metrics storage + scraping    |
 | Grafana        | http://localhost:3001                    | Dashboards + alerting         |
-| Demo launcher  | http://localhost:3000/observability-demo | Links and demo steps          |
-| Frontend       | http://localhost:3000                    | Optional sample app           |
+| Demo page      | http://localhost:3000                    | Grafana chart + Slack demo buttons |
 | API            | http://localhost:4000                    | Optional sample backend       |
 
 ---

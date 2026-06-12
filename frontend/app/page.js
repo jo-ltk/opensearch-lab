@@ -1,140 +1,89 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 
-// The browser runs this code, so it must reach the API through a port
-// published on YOUR machine (localhost:4000) — not the Docker-internal
-// hostname (api:4000), which only other containers can resolve.
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-const ACTIONS = [
+const DEMO_BUTTONS = [
   {
-    label: '🛍️ Load Products',
-    path: '/api/products',
-    activity: { icon: '✓', text: 'Products Loaded', tone: 'ok' },
+    label: '🔥 Burn CPU',
+    path: '/api/demo/cpu?seconds=45',
+    description: 'CPU % spikes in ~15s (runs 45s)',
   },
   {
-    label: '⏳ Slow Request',
-    path: '/api/slow',
-    activity: { icon: '⚠', text: 'Slow Response', tone: 'warn' },
+    label: '💾 Consume Memory',
+    path: '/api/demo/memory?mb=800',
+    description: 'Memory % climbs in ~5s',
   },
   {
-    label: '❌ Flaky Request',
-    path: '/api/error',
-    activity: { icon: '✗', text: 'Request Failed', tone: 'fail' },
+    label: '💽 Fill Disk',
+    path: '/api/demo/disk?mb=200',
+    description: 'Disk % ticks up in ~15s',
+  },
+  {
+    label: '🌐 Generate Network Traffic',
+    path: '/api/demo/network?seconds=30',
+    description: 'Network spike in ~15s (runs 30s)',
+  },
+  {
+    label: '📈 Increase System Load',
+    path: '/api/demo/load?seconds=45',
+    description: 'load1 rises in ~30s (runs 45s)',
+  },
+  {
+    label: '🚨 Send Slack Alert (Demo)',
+    path: '/api/demo/slack?alert=cpu',
+    description: 'Sends: fake Grafana [FIRING] alert to Slack',
   },
 ];
 
 export default function Home() {
-  const [results, setResults] = useState([]);
-  const [activity, setActivity] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(null);
+  const [note, setNote] = useState('');
 
-  async function callApi(action) {
-    setBusy(true);
-    const startedAt = performance.now();
-    let entry;
+  async function runDemo(button) {
+    setBusy(button.path);
+    setNote('');
     try {
-      const res = await fetch(`${API_URL}${action.path}`);
+      const res = await fetch(`${API_URL}${button.path}`);
       const body = await res.json();
-      entry = {
-        path: action.path,
-        status: res.status,
-        ok: res.ok,
-        latencyMs: Math.round(performance.now() - startedAt),
-        body,
-      };
+      setNote(body.message || 'Demo started — check Grafana');
     } catch (err) {
-      entry = {
-        path: action.path,
-        status: 0,
-        ok: false,
-        latencyMs: Math.round(performance.now() - startedAt),
-        body: { error: String(err) },
-      };
+      setNote(`Error: ${err.message}`);
+    } finally {
+      setBusy(null);
     }
-    setResults((prev) => [entry, ...prev].slice(0, 5));
-    setActivity((prev) =>
-      [
-        { ...action.activity, time: new Date().toLocaleTimeString() },
-        ...prev,
-      ].slice(0, 6)
-    );
-    setBusy(false);
   }
 
   return (
-    <main>
-      <nav className="top-nav">
-        <Link href="/observability-demo">Observability Demo →</Link>
-      </nav>
-
+    <main className="chart-demo">
       <header className="card hero">
-        <h1>💻 Tech Store Demo App</h1>
+        <h1>📡 Monitoring Demo</h1>
         <p className="subtitle">
-          Optional sample app for generating API traffic. Infrastructure
-          monitoring runs separately via Node Exporter, Prometheus, and Grafana.
+          Click a button, then watch the matching chart move in Grafana at{' '}
+          <a href="http://localhost:3001/d/host-metrics" target="_blank" rel="noopener noreferrer">
+            localhost:3001/d/host-metrics
+          </a>
         </p>
       </header>
 
-      <section className="card">
-        <h2>Try It Out</h2>
-        <div className="buttons">
-          {ACTIONS.map((a) => (
-            <button key={a.path} onClick={() => callApi(a)} disabled={busy}>
-              {a.label}
+      <div className="card">
+        <div className="demo-buttons">
+          {DEMO_BUTTONS.map((button) => (
+            <button
+              key={button.path}
+              type="button"
+              className="chart-demo-btn"
+              onClick={() => runDemo(button)}
+              disabled={busy !== null}
+            >
+              <span className="chart-demo-label">{button.label}</span>
+              <span className="chart-demo-desc">{button.description}</span>
             </button>
           ))}
         </div>
-      </section>
-
-      <section className="card">
-        <h2>Recent Activity</h2>
-        {activity.length === 0 ? (
-          <p className="empty">No activity yet — click a button above.</p>
-        ) : (
-          <ul className="activity">
-            {activity.map((a, i) => (
-              <li key={i} className={`activity-item ${a.tone}`}>
-                <span className="activity-icon">{a.icon}</span>
-                <span className="activity-text">{a.text}</span>
-                <span className="activity-time">{a.time}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="card">
-        <h2>Response</h2>
-        {results.length === 0 ? (
-          <p className="empty">Responses from the API will appear here.</p>
-        ) : (
-          results.map((r, i) => (
-            <div key={i} className={`result ${r.ok ? '' : 'error'}`}>
-              <div className="result-header">
-                <span>
-                  GET {r.path} →{' '}
-                  <span className={r.ok ? 'status-ok' : 'status-error'}>
-                    {r.status || 'network error'}
-                  </span>
-                </span>
-                <span className="latency">{r.latencyMs} ms</span>
-              </div>
-              <pre>{JSON.stringify(r.body, null, 2)}</pre>
-            </div>
-          ))
-        )}
-      </section>
-
-      <p className="hint">
-        Tip: open the{' '}
-        <Link href="/observability-demo">Monitoring Demo Launcher</Link> for
-        Grafana and Prometheus links, or visit{' '}
-        <code>localhost:3001/d/host-metrics</code> for the host metrics
-        dashboard.
-      </p>
+        {note ? <p className="chart-demo-note">{note}</p> : null}
+      </div>
     </main>
   );
 }

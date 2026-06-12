@@ -188,6 +188,60 @@ pre {
   padding: 1px 6px;
 }
 
+/* ── Chart demo page (5 buttons) ── */
+
+.chart-demo {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.demo-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chart-demo-btn {
+  width: 100%;
+  min-width: 0;
+  flex: unset;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  padding: 22px 24px;
+  border-radius: 12px;
+}
+
+.chart-demo-label {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.chart-demo-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.chart-demo-note {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.chart-demo .subtitle a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.chart-demo .subtitle a:hover {
+  text-decoration: underline;
+}
+
 /* ── Observability Demo page ── */
 
 .demo-page {

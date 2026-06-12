@@ -25,12 +25,21 @@ const logger = pino({
 
 // Known routes only — anything else becomes "other" so we never create
 // unbounded label values in metrics (cardinality!) or noisy log fields.
+const hostDemo = require('./host-demo');
+
 const KNOWN_ROUTES = [
   '/api/products',
   '/api/slow',
   '/api/error',
   '/api/burn',
   '/api/leak',
+  '/api/demo/cpu',
+  '/api/demo/memory',
+  '/api/demo/disk',
+  '/api/demo/network',
+  '/api/demo/load',
+  '/api/demo/payload',
+  '/api/demo/slack',
   '/health',
   '/metrics',
   '/alert-hook',
@@ -171,6 +180,46 @@ app.get('/api/leak', (req, res) => {
   const retainedMb = leakedBuffers.length * 50;
   req.log.warn({ retained_mb: retainedMb }, 'memory leaked on purpose');
   res.json({ message: 'leaked 50MB', retained_mb: retainedMb });
+});
+
+// Host metrics demo — each endpoint moves one Grafana chart (Node Exporter path).
+app.get('/api/demo/cpu', (req, res) => {
+  const seconds = Math.min(parseInt(req.query.seconds, 10) || 45, 120);
+  req.log.warn({ seconds }, 'host demo: CPU burn');
+  res.json(hostDemo.startCpuBurn(seconds));
+});
+
+app.get('/api/demo/memory', (req, res) => {
+  const mb = Math.min(parseInt(req.query.mb, 10) || 800, 1500);
+  req.log.warn({ mb }, 'host demo: memory consume');
+  res.json(hostDemo.startMemoryConsume(mb));
+});
+
+app.get('/api/demo/disk', (req, res) => {
+  const mb = Math.min(parseInt(req.query.mb, 10) || 200, 1000);
+  req.log.warn({ mb }, 'host demo: disk fill');
+  res.json(hostDemo.startDiskFill(mb));
+});
+
+app.get('/api/demo/network', (req, res) => {
+  const seconds = Math.min(parseInt(req.query.seconds, 10) || 30, 90);
+  req.log.warn({ seconds }, 'host demo: network pump');
+  res.json(hostDemo.startNetworkPump(seconds));
+});
+
+app.get('/api/demo/load', (req, res) => {
+  const seconds = Math.min(parseInt(req.query.seconds, 10) || 45, 120);
+  req.log.warn({ seconds }, 'host demo: system load');
+  res.json(hostDemo.startLoad(seconds));
+});
+
+app.get('/api/demo/payload', hostDemo.payloadHandler);
+
+app.get('/api/demo/slack', async (req, res) => {
+  const alert = ['cpu', 'memory', 'disk'].includes(req.query.alert) ? req.query.alert : 'cpu';
+  req.log.info({ alert }, 'host demo: slack alert');
+  const result = await hostDemo.sendSlackAlert(alert);
+  res.status(result.ok ? 200 : 503).json({ message: result.message });
 });
 
 // Grafana webhook contact point posts alert notifications here (Phase 5).

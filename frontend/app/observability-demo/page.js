@@ -1,94 +1,46 @@
 'use client';
 
-import { useCallback, useState } from 'react';
 import Link from 'next/link';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-const ACTIONS = [
-  {
-    label: '🔥 Burn CPU',
-    path: '/api/burn?seconds=120',
-    description: 'Spikes API CPU for 2 minutes — watch Grafana',
-  },
-  {
-    label: '💧 Create Memory Leak',
-    path: '/api/leak',
-    description: 'Retains 50 MB per click — repeat to trigger alerts',
-  },
-  {
-    label: '❌ Generate Errors',
-    path: '/api/error',
-    description: '~30% chance of 500 — feeds logs and error-rate alerts',
-  },
-  {
-    label: '🧹 Clear Memory Leak',
-    path: '/api/leak?clear=true',
-    description: 'Releases all leaked memory',
-  },
-];
 
 const MONITORING_LINKS = [
   {
     label: '📊 Grafana',
-    href: 'http://localhost:3001',
-    description: 'Dashboards & alerts',
+    href: 'http://localhost:3001/d/host-metrics',
+    description: 'Host Metrics dashboard and alert rules',
   },
   {
     label: '📈 Prometheus',
-    href: 'http://localhost:9090',
-    description: 'Metrics explorer',
+    href: 'http://localhost:9090/targets',
+    description: 'Scrape targets and PromQL explorer',
   },
   {
-    label: '🔍 OpenSearch Dashboards',
-    href: 'http://localhost:5601',
-    description: 'Structured log search',
+    label: '🖥️ Node Exporter',
+    href: 'http://localhost:9100/metrics',
+    description: 'Raw host metrics endpoint',
+  },
+];
+
+const DEMO_STEPS = [
+  {
+    title: '1. Start the stack',
+    command: 'docker compose up -d --build',
+  },
+  {
+    title: '2. Confirm Prometheus is scraping',
+    command: 'Open http://localhost:9090/targets — node-exporter should be UP',
+  },
+  {
+    title: '3. Open the Grafana dashboard',
+    command: 'Infrastructure Monitoring → Host Metrics (Node Exporter)',
+  },
+  {
+    title: '4. Trigger a CPU alert (optional)',
+    command: '.\\stress-demo.ps1',
+    note: 'Runs a short CPU stress test. After ~2 minutes, check Grafana alerting and Slack.',
   },
 ];
 
 export default function ObservabilityDemo() {
-  const [toasts, setToasts] = useState([]);
-  const [busy, setBusy] = useState(null);
-
-  const showToast = useCallback((message, type = 'success') => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4500);
-  }, []);
-
-  async function runAction(action) {
-    setBusy(action.path);
-    try {
-      const res = await fetch(`${API_URL}${action.path}`);
-      const body = await res.json().catch(() => ({}));
-
-      if (action.path.startsWith('/api/error')) {
-        if (res.ok) {
-          showToast(body.message || 'Request succeeded (200)', 'success');
-        } else {
-          showToast(
-            body.error || `Error generated (${res.status})`,
-            'warn'
-          );
-        }
-      } else if (res.ok) {
-        let detail = body.message || 'Action completed';
-        if (body.retained_mb != null) {
-          detail += ` — ${body.retained_mb} MB retained`;
-        }
-        showToast(detail, 'success');
-      } else {
-        showToast(body.error || `Request failed (${res.status})`, 'error');
-      }
-    } catch (err) {
-      showToast(`Network error: ${err.message}`, 'error');
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <main className="demo-page">
       <nav className="top-nav">
@@ -96,37 +48,17 @@ export default function ObservabilityDemo() {
       </nav>
 
       <header className="card hero">
-        <h1>📡 Observability Demo</h1>
+        <h1>📡 Monitoring Demo Launcher</h1>
         <p className="subtitle">
-          Trigger CPU spikes, memory leaks, and errors on demand — then watch
-          metrics, logs, and alerts update in real time.
+          Quick links and steps for the Node Exporter → Prometheus → Grafana →
+          Slack monitoring flow.
         </p>
       </header>
 
       <section className="card demo-section">
-        <h2>Actions</h2>
+        <h2>Monitoring Tools</h2>
         <p className="section-desc">
-          Each button calls the API and shows a toast with the result.
-        </p>
-        <div className="action-grid">
-          {ACTIONS.map((action) => (
-            <button
-              key={action.path}
-              className="action-btn"
-              onClick={() => runAction(action)}
-              disabled={busy !== null}
-            >
-              <span className="action-label">{action.label}</span>
-              <span className="action-desc">{action.description}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="card demo-section">
-        <h2>Monitoring</h2>
-        <p className="section-desc">
-          Open these tools in a new tab to follow along during the demo.
+          Open these in a new tab while you walk through the demo.
         </p>
         <div className="monitoring-grid">
           {MONITORING_LINKS.map((link) => (
@@ -144,13 +76,24 @@ export default function ObservabilityDemo() {
         </div>
       </section>
 
-      <div className="toast-container" aria-live="polite">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast toast-${toast.type}`}>
-            {toast.message}
-          </div>
-        ))}
-      </div>
+      <section className="card demo-section">
+        <h2>Demo Flow</h2>
+        <p className="section-desc">
+          Node Exporter collects host metrics → Prometheus scrapes them → Grafana
+          visualizes them → alert thresholds fire → Slack receives a notification.
+        </p>
+        <div className="action-grid">
+          {DEMO_STEPS.map((step) => (
+            <div key={step.title} className="action-btn" style={{ cursor: 'default' }}>
+              <span className="action-label">{step.title}</span>
+              <span className="action-desc">
+                <code>{step.command}</code>
+                {step.note ? ` — ${step.note}` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

@@ -1,10 +1,10 @@
 ---
-# Observability Learning Lab
+# Infrastructure Monitoring Lab
 #
-#   frontend (Next.js :3000) -> api (Express :4000)
+#   MONITORING: node-exporter :9100 --scraped by--> prometheus :9090 --> grafana :3001 --> Slack
 #
-#   LOGS:    api stdout --fluentd driver--> fluent-bit :24224 --> opensearch :9200 --> dashboards :5601
-#   METRICS: api /metrics + cadvisor :8081 --scraped by--> prometheus :9090 --> grafana :3001 --> alerts
+#   Optional demo app: frontend (:3000) -> api (:4000)
+#   Optional logs:     api stdout --fluentd--> fluent-bit --> opensearch --> dashboards (:5601)
 #
 # Start everything:  docker compose up -d --build
 
@@ -96,20 +96,25 @@ services:
       - prometheus-data:/prometheus
     ports:
       - 9090:9090
+    depends_on:
+      - node-exporter
     networks:
       - lab-net
 
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: cadvisor
-    privileged: true
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
     ports:
-      - 8081:8080
+      - 9100:9100
     networks:
       - lab-net
 

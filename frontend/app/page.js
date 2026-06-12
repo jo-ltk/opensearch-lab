@@ -71,10 +71,10 @@ export default function Home() {
       </nav>
 
       <header className="card hero">
-        <h1>💻 Tech Store Observability Lab</h1>
+        <h1>💻 Tech Store Demo App</h1>
         <p className="subtitle">
-          This demo generates normal requests, slow requests, and errors so we
-          can observe logs, metrics, dashboards, and alerts.
+          Optional sample app for generating API traffic. Infrastructure
+          monitoring runs separately via Node Exporter, Prometheus, and Grafana.
         </p>
       </header>
 
@@ -129,10 +129,11 @@ export default function Home() {
       </section>
 
       <p className="hint">
-        Tip: open <code>docker compose logs -f fluent-bit</code> or OpenSearch
-        Dashboards at <code>localhost:5601</code> to watch these requests turn
-        into log documents, and Grafana at <code>localhost:3001</code> to watch
-        the metrics move.
+        Tip: open the{' '}
+        <Link href="/observability-demo">Monitoring Demo Launcher</Link> for
+        Grafana and Prometheus links, or visit{' '}
+        <code>localhost:3001/d/host-metrics</code> for the host metrics
+        dashboard.
       </p>
     </main>
   );

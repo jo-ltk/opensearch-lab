@@ -1,63 +1,74 @@
-# Observability Learning Lab
+# Infrastructure Monitoring Lab
 
-A hands-on observability playground built with **Next.js**, **Express**, **Prometheus**, **Grafana**, **OpenSearch**, **Fluent Bit**, and **Slack**.
+A beginner-friendly monitoring playground built with **Node Exporter**, **Prometheus**, **Grafana**, and **Slack**.
 
-Generate real traffic, CPU spikes, memory leaks, and application errors with a single click, then watch logs, metrics, dashboards, and alerts update in real time.
+Learn how host metrics are collected, scraped, visualized, and turned into alerts — with minimal moving parts.
+
+An optional **Next.js** frontend and **Express** API are included as a simple demo launcher. The monitoring stack does not depend on application metrics.
 
 ---
 
 ## Architecture
 
 ```text
-Browser
+Node Exporter (:9100)
+        |
+        v
+Prometheus (:9090)
+        |
+        v
+Grafana (:3001)
+   |         |
+   |         +--> Dashboards (CPU, memory, disk, network, load)
    |
-   v
-Next.js Frontend (:3000)
-   |
-   v
-Express API (:4000)
-   |
-   +-------------------------------+
-   |                               |
-   | Metrics                       | Logs
-   v                               v
-Prometheus (:9090)           Fluent Bit
-   |                               |
-   v                               v
-Grafana (:3001)             OpenSearch (:9200)
-   |                               |
-   | Alerts                        |
-   +----------> Slack              |
-                                   v
-                      OpenSearch Dashboards (:5601)
+   +--> Alert rules --> Slack webhook
 ```
 
 ---
 
-## Features
+## How It Works
 
-### Frontend Demo UI
+### What is Node Exporter?
 
-The Observability Demo provides one-click actions for generating real observability events.
+[Node Exporter](https://github.com/prometheus/node_exporter) is a Prometheus exporter that runs on a server and exposes hardware and OS metrics over HTTP at `/metrics`. It reports things like CPU time, memory, disk space, network I/O, and load averages — the building blocks of infrastructure monitoring.
 
-Available at:
+In this lab, Node Exporter runs in Docker with read-only mounts to `/proc`, `/sys`, and the host root filesystem so it can read the underlying machine's stats.
+
+### How does Prometheus scrape metrics?
+
+Prometheus is a **pull-based** metrics database. On a schedule (`scrape_interval: 5s` in `prometheus/prometheus.yml`), it HTTP GETs each target's `/metrics` endpoint, parses the text format, and stores time series in its local database.
+
+Check scrape health at:
 
 ```text
-http://localhost:3000/observability-demo
+http://localhost:9090/targets
 ```
 
-Actions:
+The `node-exporter` job should show **UP**. Try a query in the Prometheus UI:
 
-* Burn CPU
-* Create Memory Leak
-* Clear Memory Leak
-* Generate Errors
+```promql
+rate(node_cpu_seconds_total{mode="idle"}[5m])
+```
 
-Monitoring shortcuts:
+### How does Grafana query Prometheus?
 
-* Grafana
-* Prometheus
-* OpenSearch Dashboards
+Grafana does not store metrics itself. The provisioned **Prometheus** datasource points at `http://prometheus:9090` inside the Docker network. Dashboard panels run PromQL queries against that datasource and render graphs.
+
+Open the **Host Metrics (Node Exporter)** dashboard:
+
+```text
+http://localhost:3001/d/host-metrics
+```
+
+### How are alerts sent to Slack?
+
+Grafana evaluates alert rules every 30 seconds. When a condition stays true for the configured `for` duration, the alert moves **Pending → Firing** and Grafana sends a notification to the Slack incoming webhook in `SLACK_WEBHOOK_URL`.
+
+Alert lifecycle:
+
+```text
+Normal → Pending → Firing → Resolved
+```
 
 ---
 
@@ -65,322 +76,139 @@ Monitoring shortcuts:
 
 * Docker Desktop (4GB+ RAM recommended)
 * PowerShell
+* A Slack incoming webhook URL (optional, for alert notifications)
 
 ---
 
 ## Quick Start
 
+### 1. Configure Slack (optional)
+
+Copy the example env file and set your webhook:
+
+```powershell
+copy .env.example .env
+# Edit .env and set SLACK_WEBHOOK_URL
+```
+
+### 2. Start the stack
+
 ```powershell
 docker compose up -d --build
 ```
 
-Open:
+### 3. Verify Node Exporter metrics
+
+```powershell
+# Raw metrics from Node Exporter
+curl http://localhost:9100/metrics
+
+# Prometheus sees the target as UP
+start http://localhost:9090/targets
+
+# PromQL: CPU idle rate (should return series)
+curl "http://localhost:9090/api/v1/query?query=node_cpu_seconds_total"
+```
+
+### 4. Open Grafana
+
+```powershell
+start http://localhost:3001/d/host-metrics
+```
+
+You should see panels for **CPU Usage %**, **Memory Usage %**, **Disk Usage %**, **Network Traffic**, and **System Load**.
+
+### 5. Run the automated test plan
+
+```powershell
+.\test-plan.ps1
+```
+
+### 6. Optional demo launcher
 
 ```text
-Frontend:
-http://localhost:3000
-
-Observability Demo:
 http://localhost:3000/observability-demo
 ```
 
 ---
 
+## Demo Flow
+
+```text
+Node Exporter collects server metrics
+        ↓
+Prometheus scrapes metrics every 5s
+        ↓
+Grafana visualizes metrics on the Host Metrics dashboard
+        ↓
+Alert threshold exceeded (e.g. CPU > 80%)
+        ↓
+Slack notification received
+```
+
+### Trigger a CPU alert
+
+```powershell
+.\stress-demo.ps1
+```
+
+This runs a short CPU stress container. After about 2 minutes, the **High CPU usage** alert should fire and Slack should receive a notification (if `SLACK_WEBHOOK_URL` is set). When stress stops, the alert resolves.
+
+---
+
 ## Services
 
-| Service               | URL                                      |
-| --------------------- | ---------------------------------------- |
-| Frontend              | http://localhost:3000                    |
-| Observability Demo    | http://localhost:3000/observability-demo |
-| API                   | http://localhost:4000                    |
-| Metrics               | http://localhost:4000/metrics            |
-| Prometheus            | http://localhost:9090                    |
-| Grafana               | http://localhost:3001                    |
-| OpenSearch            | http://localhost:9200                    |
-| OpenSearch Dashboards | http://localhost:5601                    |
-| cAdvisor              | http://localhost:8081                    |
+| Service        | URL                                      | Role                          |
+| -------------- | ---------------------------------------- | ----------------------------- |
+| Node Exporter  | http://localhost:9100/metrics            | Host metrics exporter         |
+| Prometheus     | http://localhost:9090                    | Metrics storage + scraping    |
+| Grafana        | http://localhost:3001                    | Dashboards + alerting         |
+| Demo launcher  | http://localhost:3000/observability-demo | Links and demo steps          |
+| Frontend       | http://localhost:3000                    | Optional sample app           |
+| API            | http://localhost:4000                    | Optional sample backend       |
 
 ---
 
-## Demo Scenarios
+## Dashboard
 
-### 1. CPU Alert Demo
+**Infrastructure Monitoring → Host Metrics (Node Exporter)**
 
-Click:
-
-```text
-Burn CPU
-```
-
-What happens:
-
-```text
-API CPU increases
-↓
-cAdvisor collects metrics
-↓
-Prometheus scrapes metrics
-↓
-Grafana CPU graph rises
-↓
-Alert state:
-Normal
-→ Pending
-→ Firing
-↓
-Slack notification sent
-```
-
-Alert:
-
-```text
-API container high CPU
-```
-
-Threshold:
-
-```text
-CPU > 0.5 cores for 2 minutes
-```
+| Panel            | What it shows                                      |
+| ---------------- | -------------------------------------------------- |
+| CPU Usage %      | Non-idle CPU time across all cores                 |
+| Memory Usage %   | RAM in use vs total                                |
+| Disk Usage %     | Used space per filesystem                          |
+| Network Traffic  | Receive/transmit bytes per second                  |
+| System Load      | 1-, 5-, and 15-minute load averages                |
 
 ---
 
-### 2. Memory Alert Demo
+## Alert Rules
 
-Click:
+All rules are in `grafana/provisioning/alerting/alerting.yml` and route to Slack.
 
-```text
-Create Memory Leak
-```
-
-Each click allocates approximately 50 MB.
-
-Repeat several times until:
-
-```text
-Memory > 300 MB
-```
-
-Flow:
-
-```text
-Memory grows
-↓
-Prometheus records usage
-↓
-Grafana memory graph rises
-↓
-Memory alert fires
-↓
-Slack notification sent
-```
-
-Resolve:
-
-```text
-Clear Memory Leak
-```
+| Alert            | Condition                         | Duration |
+| ---------------- | --------------------------------- | -------- |
+| High CPU usage   | CPU > 80%                         | 2 min    |
+| High memory usage| Memory > 80%                      | 2 min    |
+| Low disk space   | Free space < 20% on a filesystem  | 5 min    |
 
 ---
 
-### 3. Error Rate Alert Demo
-
-Click:
-
-```text
-Generate Errors
-```
-
-The API intentionally returns intermittent HTTP 500 responses.
-
-Flow:
-
-```text
-500 errors generated
-↓
-Prometheus records failures
-↓
-Error rate increases
-↓
-Grafana alert fires
-↓
-Slack notification sent
-```
-
----
-
-## Observability Stack
-
-### Metrics
-
-Collected by:
-
-```text
-Prometheus
-```
-
-Useful queries:
+## Useful PromQL Queries
 
 ```promql
-sum by (route) (rate(http_requests_total[1m]))
+# CPU usage %
+100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
 
-sum(rate(http_requests_total{status=~"5.."}[1m]))
+# Memory usage %
+(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
 
-histogram_quantile(
-  0.95,
-  sum by (le)(
-    rate(http_request_duration_seconds_bucket[5m])
-  )
-)
-```
+# Disk free %
+(node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100
 
----
-
-### Logs
-
-Collected by:
-
-```text
-Fluent Bit
-```
-
-Stored in:
-
-```text
-OpenSearch
-```
-
-Viewed in:
-
-```text
-OpenSearch Dashboards
-```
-
-Useful searches:
-
-```text
-level:error
-
-route:"/api/error"
-
-status >= 500
-
-grafana alert notification
-```
-
----
-
-### Dashboards
-
-Grafana Dashboard:
-
-```text
-Observability Lab
-└── API Observability (RED + Containers)
-```
-
-Monitor:
-
-* Request Rate
-* Error Rate
-* Request Duration
-* Container CPU
-* Container Memory
-
----
-
-## Alerts
-
-### High Request Error Rate
-
-Trigger:
-
-```powershell
-.\load-test.ps1 -OnlyErrors
-```
-
-Condition:
-
-```text
-5xx error rate > 5%
-```
-
----
-
-### API Container High CPU
-
-Trigger:
-
-```text
-Burn CPU button
-```
-
-or
-
-```powershell
-curl http://localhost:4000/api/burn?seconds=240
-```
-
-Condition:
-
-```text
-CPU > 0.5 cores for 2 minutes
-```
-
----
-
-### API Container High Memory
-
-Trigger:
-
-```text
-Create Memory Leak button
-```
-
-or
-
-```powershell
-curl http://localhost:4000/api/leak
-```
-
-Condition:
-
-```text
-Memory > 300 MB
-```
-
-Resolve:
-
-```powershell
-curl "http://localhost:4000/api/leak?clear=true"
-```
-
----
-
-## Slack Integration
-
-Grafana alerts can be sent directly to Slack.
-
-Alert lifecycle:
-
-```text
-Normal
-↓
-Pending
-↓
-Firing
-↓
-Resolved
-```
-
-Example Slack notifications:
-
-```text
-[FIRING] API container high CPU
-
-[FIRING] High request error rate
-
-[RESOLVED] API container high CPU
+# Network receive rate
+sum(rate(node_network_receive_bytes_total{device!="lo"}[5m]))
 ```
 
 ---
@@ -390,11 +218,9 @@ Example Slack notifications:
 ```powershell
 docker compose ps
 
+docker compose logs prometheus --tail 50
+
 docker compose logs grafana --tail 50
-
-docker compose logs fluent-bit --tail 50
-
-docker compose logs api --tail 50
 
 docker compose restart grafana
 
@@ -410,16 +236,17 @@ docker compose down -v
 ```text
 opensearch-lab/
 │
-├── api/
-├── frontend/
-├── fluent-bit/
 ├── prometheus/
+│   └── prometheus.yml          # Scrape config (node-exporter + self)
 ├── grafana/
-├── docs/
-│
+│   ├── dashboards/
+│   │   └── host-metrics.json   # Host metrics dashboard
+│   └── provisioning/           # Datasource, dashboards, alerts
+├── frontend/                   # Optional demo launcher
+├── api/                        # Optional sample API
 ├── docker-compose.yml
-├── load-test.ps1
-├── setup-dashboards.ps1
+├── stress-demo.ps1             # Trigger CPU alert for demos
+├── test-plan.ps1               # Automated verification
 └── README.md
 ```
 
@@ -429,14 +256,9 @@ opensearch-lab/
 
 By completing this lab you will understand:
 
-* Structured logging
-* Log aggregation
-* Prometheus metrics
-* RED metrics
-* Grafana dashboards
-* Alerting
-* Slack notifications
-* OpenSearch
-* Fluent Bit
-* Container monitoring
-* End-to-end observability workflows
+* What Node Exporter exposes and why
+* How Prometheus pull-based scraping works
+* How Grafana queries Prometheus with PromQL
+* How to build infrastructure dashboards
+* How Grafana alert rules evaluate thresholds
+* How to route alert notifications to Slack

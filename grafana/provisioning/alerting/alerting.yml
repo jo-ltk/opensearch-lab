@@ -1,17 +1,10 @@
 apiVersion: 1
 
-# Where notifications go:
-# - webhook back into our API (alert payload becomes a log in OpenSearch)
-# - Slack incoming webhook for human-readable alerts
+# All alerts route to the Slack incoming webhook configured in SLACK_WEBHOOK_URL.
 contactPoints:
   - orgId: 1
-    name: api-webhook
+    name: slack-lab
     receivers:
-      - uid: api-webhook
-        type: webhook
-        settings:
-          url: http://api:4000/alert-hook
-          httpMethod: POST
       - uid: slack-lab
         type: slack
         settings:
@@ -21,10 +14,9 @@ contactPoints:
           title: '{{ template "slack.default.title" . }}'
           text: '{{ template "slack.default.text" . }}'
 
-# Routing: send every alert to the webhook, quickly (lab-friendly timings).
 policies:
   - orgId: 1
-    receiver: api-webhook
+    receiver: slack-lab
     group_by: ['grafana_folder', 'alertname']
     group_wait: 10s
     group_interval: 1m
@@ -32,57 +24,16 @@ policies:
 
 groups:
   - orgId: 1
-    name: lab-alerts
-    folder: Observability Lab
+    name: infrastructure-alerts
+    folder: Infrastructure Monitoring
     interval: 30s
     rules:
       # ----------------------------------------------------------------
-      # 1. Request failures: >5% of requests returned 5xx for 1 minute.
-      #    Trigger:  .\load-test.ps1 -OnlyErrors
+      # 1. High CPU: host CPU usage above 80% for 2 minutes.
+      #    Trigger:  .\stress-demo.ps1
       # ----------------------------------------------------------------
-      - uid: high-error-rate
-        title: High request error rate
-        condition: C
-        for: 1m
-        noDataState: OK
-        execErrState: OK
-        labels:
-          severity: critical
-        annotations:
-          summary: 'More than 5% of API requests are failing with 5xx'
-          runbook: 'Stop the error load test, or fix /api/error ;)'
-        data:
-          - refId: A
-            relativeTimeRange: { from: 300, to: 0 }
-            datasourceUid: prometheus
-            model:
-              refId: A
-              expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))
-              instant: false
-              range: true
-          - refId: B
-            datasourceUid: __expr__
-            model:
-              refId: B
-              type: reduce
-              expression: A
-              reducer: last
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              refId: C
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [0.05] }
-
-      # ----------------------------------------------------------------
-      # 2. CPU: api container using >0.5 CPU cores for 2 minutes.
-      #    Uses cAdvisor job/id labels (Windows Docker Desktop has no name label).
-      #    Trigger:  curl http://localhost:4000/api/burn?seconds=240
-      # ----------------------------------------------------------------
-      - uid: high-cpu-api
-        title: API container high CPU
+      - uid: high-cpu
+        title: High CPU usage
         condition: C
         for: 2m
         noDataState: OK
@@ -90,15 +41,15 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: 'api container is using more than 0.5 CPU cores'
-          runbook: 'Wait for /api/burn to finish, or restart the api container'
+          summary: 'Host CPU usage is above 80%'
+          runbook: 'Stop the stress container or wait for the load to subside'
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
             datasourceUid: prometheus
             model:
               refId: A
-              expr: sum by (id) (rate(container_cpu_usage_seconds_total{job="cadvisor"}[2m]))
+              expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{job="node-exporter",mode="idle"}[5m])) * 100)
               instant: false
               range: true
           - refId: B
@@ -115,33 +66,29 @@ groups:
               type: threshold
               expression: B
               conditions:
-                - evaluator: { type: gt, params: [0.5] }
+                - evaluator: { type: gt, params: [80] }
 
       # ----------------------------------------------------------------
-      # 3. Memory: api container above 300MB for 1 minute.
-      #    Uses cAdvisor job/id labels (Windows Docker Desktop has no name label).
-      #    /restricted is the per-workload cgroup on Docker Desktop; /docker is aggregate.
-      #    Trigger:  curl http://localhost:4000/api/leak   (5+ times)
-      #    Resolve:  curl "http://localhost:4000/api/leak?clear=true"
+      # 2. High Memory: host memory usage above 80% for 2 minutes.
       # ----------------------------------------------------------------
-      - uid: high-memory-api
-        title: API container high memory
+      - uid: high-memory
+        title: High memory usage
         condition: C
-        for: 1m
+        for: 2m
         noDataState: OK
         execErrState: OK
         labels:
           severity: warning
         annotations:
-          summary: 'api container is using more than 300MB of memory'
-          runbook: 'curl "http://localhost:4000/api/leak?clear=true" to release it'
+          summary: 'Host memory usage is above 80%'
+          runbook: 'Identify memory-heavy processes or restart the stress container'
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
             datasourceUid: prometheus
             model:
               refId: A
-              expr: container_memory_usage_bytes{name="api"}
+              expr: (1 - (node_memory_MemAvailable_bytes{job="node-exporter"} / node_memory_MemTotal_bytes{job="node-exporter"})) * 100
               instant: false
               range: true
           - refId: B
@@ -158,4 +105,43 @@ groups:
               type: threshold
               expression: B
               conditions:
-                - evaluator: { type: gt, params: [314572800] }
+                - evaluator: { type: gt, params: [80] }
+
+      # ----------------------------------------------------------------
+      # 3. Low disk space: less than 20% free on a filesystem for 5 minutes.
+      # ----------------------------------------------------------------
+      - uid: low-disk-space
+        title: Low disk space
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Filesystem has less than 20% free space'
+          runbook: 'Free disk space on the affected mount point'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: (node_filesystem_avail_bytes{job="node-exporter",fstype!~"tmpfs|overlay|aufs|squashfs"} / node_filesystem_size_bytes{job="node-exporter",fstype!~"tmpfs|overlay|aufs|squashfs"}) * 100
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: min
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [20] }

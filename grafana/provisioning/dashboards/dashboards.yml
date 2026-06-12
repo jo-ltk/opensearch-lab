@@ -3,7 +3,7 @@ apiVersion: 1
 providers:
   - name: lab-dashboards
     orgId: 1
-    folder: Observability Lab
+    folder: Infrastructure Monitoring
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10

@@ -10,7 +10,7 @@
     {
       "id": 1,
       "type": "timeseries",
-      "title": "CPU Usage %",
+      "title": "CPU Usage JOELJOEL %",
       "description": "Percentage of CPU time spent on non-idle work across all cores.",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },

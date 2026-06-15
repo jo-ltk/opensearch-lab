@@ -1,0 +1,21 @@
+name: Dashboard Check
+
+on:
+  push:
+    paths:
+      - 'grafana/dashboards/*.json'
+
+jobs:
+  validate-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Dashboard JSON
+        run: |
+          python -m json.tool grafana/dashboards/host-metrics.json > /dev/null
+
+      - name: Success
+        run: echo "Dashboard JSON validated successfully"

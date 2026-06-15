@@ -1,7 +1,7 @@
 {
   "title": "Host Metrics (Node Exporter)",
   "uid": "host-metrics",
-  "tags": ["lab", "node-exporter", "infrastructure"],
+  "tags": ["lab", "node-exporter", "infrastructure", "ci-demo"],
   "timezone": "browser",
   "schemaVersion": 39,
   "refresh": "5s",

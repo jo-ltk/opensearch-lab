@@ -1,2 +1,6 @@
 .env
 demo-disk/
+node_modules/
+bun.lock
+package-lock.json
+npm-debug.log*

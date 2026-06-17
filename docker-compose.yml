@@ -27,6 +27,9 @@ services:
       - 4000:4000
     environment:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+      - NEW_RELIC_APP_NAME=${NEW_RELIC_APP_NAME:-opensearch-lab-api}
+      - NEW_RELIC_AI_MONITORING_ENABLED=${NEW_RELIC_AI_MONITORING_ENABLED:-false}
     volumes:
       - ./demo-disk:/demo-disk
     networks:

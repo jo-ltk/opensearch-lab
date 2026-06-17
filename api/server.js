@@ -1,5 +1,9 @@
+// New Relic must load before any other module so APM instrumentation wraps Express, HTTP, etc.
+require('newrelic');
+
 // Observability Lab API
-// - Logs:    pino + pino-http  -> structured JSON on stdout -> Fluent Bit -> OpenSearch
+// - APM:     New Relic agent     -> traces, errors, Node runtime metrics in NR UI
+// - Logs:    pino + pino-http  -> structured JSON on stdout -> Fluent Bit -> OpenSearch (+ NR log forwarding)
 // - Metrics: prom-client       -> GET /metrics              -> scraped by Prometheus
 
 const express = require('express');

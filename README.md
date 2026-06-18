@@ -11,17 +11,25 @@ An optional **Next.js** frontend and **Express** API are included as a simple de
 ## Architecture
 
 ```text
-Node Exporter (:9100)
-        |
-        v
-Prometheus (:9090)
-        |
-        v
-Grafana (:3001)
-   |         |
-   |         +--> Dashboards (CPU, memory, disk, network, load)
-   |
-   +--> Alert rules --> Slack webhook
+                    User
+                      ↓
+               Next.js Frontend
+                      ↓
+                Node.js API
+                      ↓
+              Docker Container
+                      │
+        ┌─────────────┼─────────────┐
+        │             │             │
+        ↓             ↓             ↓
+
+   New Relic      Fluent Bit   Node Exporter
+        ↓             ↓             ↓
+   APM Metrics    OpenSearch    Prometheus
+        ↓             ↓             ↓
+   New Relic UI  Dashboards      Grafana
+                                      ↓
+                                    Slack
 ```
 
 ---

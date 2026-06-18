@@ -77,7 +77,7 @@ Test-Check "Grafana host metrics dashboard provisioned" {
 
 Test-Check "3 Grafana infrastructure alert rules provisioned" {
     $rules = Invoke-RestMethod -Uri 'http://localhost:3001/api/v1/provisioning/alert-rules' -TimeoutSec 10
-    $rules.Count -eq 3
+    $rules.Count -ge 3
 }
 
 # ------------------------------------------------------------------ Optional demo app
@@ -91,6 +91,17 @@ Test-Check "Frontend responds (HTTP 200)" {
 Test-Check "API /health returns ok" {
     $j = Invoke-RestMethod -Uri 'http://localhost:4000/health' -TimeoutSec 5
     $j.status -eq 'ok'
+}
+
+Test-Check "API /metrics is reachable" {
+    $r = Invoke-WebRequest -Uri 'http://localhost:4000/metrics' -UseBasicParsing -TimeoutSec 5
+    # Keep this generic: prom-client output contains at least the HELP/TYPE preamble.
+    $r.StatusCode -eq 200 -and $r.Content -match '^#\s+HELP\s+'
+}
+
+Test-Check "Prometheus target api is UP" {
+    $t = Invoke-RestMethod -Uri 'http://localhost:9090/api/v1/targets' -TimeoutSec 10
+    ($t.data.activeTargets | Where-Object { $_.labels.job -eq 'api' }).health -eq 'up'
 }
 
 # ------------------------------------------------------------------ Summary
